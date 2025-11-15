@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Upload, X, BookOpen, Clock, TrendingUp, LogOut, User } from 'lucide-react';
 
-const CourseClarity = () => {
+const SyllabusAnalyzer = () => {
   // In-memory user database (persists during session only)
   const [users, setUsers] = useState({});
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -88,20 +88,23 @@ const CourseClarity = () => {
     setFormData({ email: '', password: '', name: '' });
   };
 
-  const analyzeSyllabus = async (text, fileName) => {
+    const analyzeSyllabus = async (text, fileName) => {
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      console.log("Extracted text length:", text.length);
+      console.log("First 500 chars:", text.substring(0, 500));
+      const GEMINI_API_KEY = "YOUR_API_KEY";
+      
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          messages: [
+          contents: [
             {
-              role: "user",
-              content: `Analyze this college course syllabus and provide:
+              parts: [
+                {
+                  text: `Analyze this college course syllabus and provide:
 1. Course name
 2. Estimated hours per week (consider assignments, readings, projects, exams)
 3. Difficulty rating out of 10 (consider course level, prerequisites, workload, grading)
@@ -116,13 +119,23 @@ Respond ONLY with a JSON object in this exact format:
 
 Syllabus text:
 ${text.substring(0, 8000)}`
+                }
+              ]
             }
-          ],
+          ]
         })
       });
 
       const data = await response.json();
-      const text_content = data.content.map(item => item.type === "text" ? item.text : "").join("\n");
+      console.log("API response:", data);
+      
+      if (!response.ok) {
+        throw new Error(data.error.message || "API error occurred");
+      }
+      
+      const text_content = data.candidates[0].content.parts[0].text;
+      console.log("Extracted content:", text_content);
+      
       const cleanText = text_content.replace(/```json|```/g, "").trim();
       const analysis = JSON.parse(cleanText);
       
@@ -132,8 +145,8 @@ ${text.substring(0, 8000)}`
         ...analysis
       };
     } catch (err) {
-      console.error("Analysis error:", err);
-      throw new Error("Failed to analyze syllabus. Please try again.");
+      console.error("Analysis error details:", err);
+      throw new Error(`Failed to analyze: ${err.message}`);
     }
   };
 
@@ -181,26 +194,26 @@ ${text.substring(0, 8000)}`
   };
 
   const extractTextFromPDF = async (uint8Array) => {
-  // Convert uint8Array to string in chunks to avoid stack overflow
-  let text = '';
-  const chunkSize = 10000;
-  
-  for (let i = 0; i < uint8Array.length; i += chunkSize) {
-    const chunk = uint8Array.slice(i, i + chunkSize);
-    text += String.fromCharCode.apply(null, chunk);
-  }
-  
-  // Try to extract text between parentheses (common in PDFs)
-  const textContent = text.match(/\(([^)]+)\)/g);
-  
-  if (textContent && textContent.length > 10) {
-    return textContent.map(match => match.slice(1, -1)).join(' ');
-  }
-  
-  // Fallback: decode as UTF-8 and clean
-  const decoder = new TextDecoder('utf-8', { fatal: false });
-  return decoder.decode(uint8Array).replace(/[^\x20-\x7E\n]/g, ' ');
-};
+    // Convert uint8Array to string in chunks to avoid stack overflow
+    let text = '';
+    const chunkSize = 10000;
+    
+    for (let i = 0; i < uint8Array.length; i += chunkSize) {
+      const chunk = uint8Array.slice(i, i + chunkSize);
+      text += String.fromCharCode.apply(null, chunk);
+    }
+    
+    // Try to extract text between parentheses (common in PDFs)
+    const textContent = text.match(/\(([^)]+)\)/g);
+    
+    if (textContent && textContent.length > 10) {
+      return textContent.map(match => match.slice(1, -1)).join(' ');
+    }
+    
+    // Fallback: decode as UTF-8 and clean
+    const decoder = new TextDecoder('utf-8', { fatal: false });
+    return decoder.decode(uint8Array).replace(/[^\x20-\x7E\n]/g, ' ');
+  };
 
   const removeCourse = (id) => {
     const updatedCourses = courses.filter(c => c.id !== id);
@@ -476,4 +489,4 @@ ${text.substring(0, 8000)}`
   );
 };
 
-export default CourseClarity;
+export default SyllabusAnalyzer;
