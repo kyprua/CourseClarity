@@ -181,16 +181,26 @@ ${text.substring(0, 8000)}`
   };
 
   const extractTextFromPDF = async (uint8Array) => {
-    const text = String.fromCharCode(...uint8Array);
-    const textContent = text.match(/\(([^)]+)\)/g);
-    
-    if (textContent) {
-      return textContent.map(match => match.slice(1, -1)).join(' ');
-    }
-    
-    const decoder = new TextDecoder('utf-8', { fatal: false });
-    return decoder.decode(uint8Array).replace(/[^\x20-\x7E\n]/g, ' ');
-  };
+  // Convert uint8Array to string in chunks to avoid stack overflow
+  let text = '';
+  const chunkSize = 10000;
+  
+  for (let i = 0; i < uint8Array.length; i += chunkSize) {
+    const chunk = uint8Array.slice(i, i + chunkSize);
+    text += String.fromCharCode.apply(null, chunk);
+  }
+  
+  // Try to extract text between parentheses (common in PDFs)
+  const textContent = text.match(/\(([^)]+)\)/g);
+  
+  if (textContent && textContent.length > 10) {
+    return textContent.map(match => match.slice(1, -1)).join(' ');
+  }
+  
+  // Fallback: decode as UTF-8 and clean
+  const decoder = new TextDecoder('utf-8', { fatal: false });
+  return decoder.decode(uint8Array).replace(/[^\x20-\x7E\n]/g, ' ');
+};
 
   const removeCourse = (id) => {
     const updatedCourses = courses.filter(c => c.id !== id);
